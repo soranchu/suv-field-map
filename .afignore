@@ -1,0 +1,7 @@
+#.afignore
+
+#ignore dot files
+.*
+
+#ignore local db
+local-db/

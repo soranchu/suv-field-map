@@ -1,0 +1,310 @@
+<% include header %>
+<script type="text/javascript" src="create-site.js"></script>
+<script type="text/javascript">
+ var map;
+ var sites;
+ var addFieldForm;
+ var removeFieldForm;
+ var infowindow;
+ var suvLayer;
+ 
+ $(function(){
+ 	$("#templates").hide();
+ 	var $fieldTemplate = $("#templates .tmpl-form-field");
+ 	var $fieldHolder = $("#field-holder");
+ 	removeFieldForm = function($field, anim){
+ 		var remain = 3;
+ 		if( anim ){
+	 		$field.slideUp(function(){
+	 			$(this).remove();
+	 		});
+	 	}else{
+	 		$field.remove();
+	 		remain = 2;
+	 	}
+ 		if( $(".del-field").length <= remain ){
+ 			//hide last 1 button
+ 			// "3" means,
+ 			//    current slide-upping button
+ 			//    hidden button in template
+ 			//    last one
+ 			$(".del-field").attr("disabled","disabled");
+ 			if( anim ){
+	 			$(".del-field").fadeOut();
+	 		}else{
+	 			$(".del-field").hide();
+	 		}
+ 		}
+ 	};
+ 	$(".del-field").click(function(){
+ 		removeFieldForm($(this).parent().parent().parent(),true);
+ 	});
+ 	$fieldTemplate.clone(true).appendTo($fieldHolder);
+ 	$(".del-field").hide();
+ 	addFieldForm = function(anim){
+ 		if( anim ){
+	     	$fieldTemplate.clone(true).hide().appendTo($fieldHolder).slideDown();
+     	}else{
+     		$fieldTemplate.clone(true).appendTo($fieldHolder);
+     	}
+     	$(".del-field").removeAttr("disabled");
+ 		if( anim ){
+	 		$(".del-field").fadeIn();
+	 	}else{
+	 		$(".del-field").show();
+	 	}
+
+ 	};
+ 	$("#add-field").click(function(){
+ 		addFieldForm(true);
+ 	});
+
+ 	$("#add-site").click(function(e){
+ 		var data = { field :[] };
+ 		$("#add-site-form").find(":text").each(function(){
+ 			if( $(this).attr("name") == "field" ){
+ 				data.field.push({"title":$(this).val()});
+ 			}else{
+ 				data[$(this).attr("name")] = $(this).val();
+ 			}
+ 		});
+ 		console.log(data);
+ 		$(this).attr("disabled","disabled");
+ 		$.post("./add-site", {"data":JSON.stringify(data)}, function(data,stat,xhr){
+ 			$("#add-site").removeAttr("disabled");
+ 			loadSites();
+ 			console.log(stat);
+ 		});
+ 	});
+
+ 	$(".site-edit").click(function(){
+ 		var id = $(this).parent().parent().parent().parent().parent().find(".ph-id").text();
+ 		$.each(sites , function(){
+ 			if( this._id == id ){
+ 				var fieldCount = this.fields.length;
+ 				while( $fieldHolder.find(".tmpl-form-field").length < fieldCount ){
+ 					addFieldForm(false);
+ 				}
+ 				while( $fieldHolder.find(".tmpl-form-field").length > fieldCount ){
+ 					removeFieldForm($fieldHolder.find(".tmpl-form-field:last"), false);
+ 				}
+ 				$('#add-site-form input[name="title"]').val(this.title);
+ 				$('#add-site-form input[name="baseUrl"]').val(this.baseUrl);
+ 				$('#add-site-form .site-id').text(this._id);
+ 				for( var f in this.fields ){
+ 					$fieldHolder.find('.field-name-field:eq('+f+')').val(this.fields[f].title);
+ 					$fieldHolder.find('.field-id:eq('+f+')').text(this.fields[f]._id);
+ 				}
+ 				$.smoothScroll({scrollTarget:"#add-site-form"});
+ 				updateUrlLinkButtonState();
+ 				return false;
+ 			}
+ 		});
+ 	});
+ 	$("#check-show-suvmap").click(function(){
+ 		if( $(this).prop("checked") ){
+ 			suvLayer.setMap(map);
+ 		}else{
+ 			suvLayer.setMap(null);
+ 		}
+ 	});
+ 	$('input[name="baseUrl"]').keyup(function(){
+ 		updateUrlLinkButtonState();
+ 	});
+ 	$("#button-url-link").click(function(){
+		var win=window.open($('input[name="baseUrl"]').val(), '_blank');
+ 	 	win.focus();
+   	});
+ 	loadMapScript();
+ 	loadSites();
+ });
+
+var updateUrlLinkButtonState = function(){
+	if( $('input[name="baseUrl"]').val().length > 0 ){
+		$("#button-url-link").removeAttr("disabled");
+	}else{
+		$("#button-url-link").addAttr("disabled","disabled");
+	}
+};
+
+var loadSites = function (){
+ 	var $siteTemplate = $("#templates .tmpl-site");
+ 	var $fldTemplate = $("#templates .tmpl-field");
+ 	var $sitesHolder = $("#ph-sites");
+
+ 	$sitesHolder.empty();
+
+ 	$.get("./sites",function(data,stat,xhr){
+ 		sites = data;
+ 		$.each(data , function(){
+ 			var $s = $siteTemplate.clone(true);
+ 			$s.appendTo($sitesHolder);
+
+ 			$s.find(".ph-title").text(this.title);
+ 			$s.find(".ph-id").text(this._id);
+ 			$s.find(".ph-url").text(this.baseUrl);
+ 			
+ 			if( this.fields ){ 
+	 			$.each(this.fields,function(){
+	 				var $f = $fldTemplate.clone();
+	 				$f.appendTo($sitesHolder);
+		 			$f.find(".ph-id").text(this._id);
+	 				$f.find(".ph-title").text(this.title);
+	 			});
+	 		}
+ 		});
+ 	});
+};
+
+var loadMapScript = function(){
+	var script = document.createElement("script");
+	var key = "<%=mapkey%>";
+	script.type = "text/javascript";
+    script.src = "http://maps.googleapis.com/maps/api/js?key="
+      + key + "&sensor=false&callback=onMapInitialized";
+  document.body.appendChild(script);
+};
+
+var onMapInitialized = function(){
+	google.maps.visualRefresh = true;
+	var mapOptions = {
+    	zoom: 8,
+    	center: new google.maps.LatLng(35.689472, 139.69175),
+    	mapTypeId: google.maps.MapTypeId.ROADMAP
+  	}
+  	map = new google.maps.Map(document.getElementById("map-container"), mapOptions);
+ 	infowindow = new google.maps.InfoWindow();
+
+	google.maps.event.addListener(map, "click", function(e){
+  		console.log(e.latLng.toString());
+  	});
+
+	suvLayer = new google.maps.KmlLayer({
+		url:'https://www.google.com/maps/ms?authuser=0&vps=2&hl=ja&ie=UTF8&msa=0&output=kml&msid=218293237339362866681.0004d304a1c8d308dbd1e',
+		preserveViewport : true,
+		clickable : true,
+		suppressInfoWindows : true
+	});
+
+	google.maps.event.addListener(suvLayer, "click", function(e){
+  		console.log(e.featureData.name + " " + e.latLng.toString());
+  		var html = e.featureData.infoWindowHtml + 
+  			'<div><button class="btn" onclick="onClickSuvInfoWindow()">このフィールドを登録する</button>';
+  		infowindow.title = e.featureData.name;
+  		infowindow.setOptions({
+  			content : html,
+  			pixelOffset:e.pixelOffset,
+  			position:e.latLng
+  		});
+  		infowindow.open(map);
+  	});
+};
+
+var onClickSuvInfoWindow = function(){
+	$('#add-site-form input[name="title"]').val(infowindow.title);
+	$('#add-site-form input[name="baseUrl"]').val($(infowindow.content).find("a").attr("href"));
+ 	var $fieldHolder = $("#field-holder");
+
+	if( $fieldHolder.find(".tmpl-form-field").length < 1 ){
+		addFieldForm(false);
+	}else{
+		while( $fieldHolder.find(".tmpl-form-field").length > 1 ){
+			removeFieldForm($fieldHolder.find(".tmpl-form-field:last"), false);
+		}
+	}
+ 	updateUrlLinkButtonState();
+ 	$.smoothScroll({scrollTarget:"#add-site-form"});
+};
+
+</script>
+
+
+<H1>Site Management</H1>
+<div class="row" id="map-container" style="height:300px;">
+</div>
+<div class="row">
+	<label class="checkbox">
+      <input type="checkbox" id="check-show-suvmap"> サバイバルフィールドマップを表示する
+    </label>
+</div>
+<div class="row" id="sites">
+	<legend>Sites</legend>
+	<table class="table table-hover">
+		<thead>
+			<tr>
+				<th colspan="2">Title</th>
+				<th>URL</th>
+				<th style="width:30%;">#</th>
+				<th style="width:20%;"></th>
+			</tr>
+		</thead>
+		<tbody id="ph-sites" >
+		</tbody>
+	</table>
+
+</div>	
+<div class="row">
+	<form class="form-horizontal" id="add-site-form" action="./add-site">
+		<legend>Add Site</legend>
+		<div class="control-group">
+	 		<label class="control-label">Site Title</label>
+	 		<div class="controls">
+	 			<input type="text" name="title" class="input-xxlarge">
+				<span class="help-inline"><span class="site-id muted"/></span>
+	 		</div>
+		</div>
+	 	<div class="control-group">
+	  		<label class="control-label">Site URL</label>
+	  		<div class="controls">
+	  			<input type="text" name="baseUrl" class="input-xxlarge">
+	  			<button class="btn btn-small" type="button" id="button-url-link" disabled><i class="icon-globe"></i></button>
+	  		</div>
+	 	</div>
+	  	<div id="fields">
+	    	<div id="field-holder"></div>
+	    	<div class="controls">
+	      		<button id="add-field" class="btn btn-small" type="button"><i class="icon-plus"></i> Add Field</button>
+	    	</div>
+	  	</div>
+   	<div class="form-actions">
+	 	<button id="add-site" class="btn btn-primary" type="button">Post</button>
+	</div>
+	</form>
+</div>
+<div id="templates">
+	<table>
+	<tr class="tmpl-site">
+		<td class="ph-title" colspan="2"></td>
+		<td class="ph-url"></td>
+		<td class="ph-id"></td>
+		<td>
+			<div class="btn-group">
+  				<a class="btn btn-mini dropdown-toggle" data-toggle="dropdown" data-target="#"><i class="caret"></i> Action</a>
+		  		<ul class="dropdown-menu" role="menu">
+					<li><a class="site-edit"><i class="icon-edit"></i> Edit</a></li>
+					<li><a class="site-remove"><i class="icon-remove"></i> Remove</a></li>
+		  		</ul>
+			</div>
+		</td>
+	</tr>
+	<tr class="tmpl-field">
+		<td style="width:10px;"> </td>
+		<td class="ph-title"></td>
+		<td class="ph-url"></td>
+		<td class="ph-id"></td>
+		<td></td>
+	</tr>
+	</table>
+ 	<div class="tmpl-form-field">
+		<div class="control-group">
+			<label class="control-label">Field name</label>
+			<div class="controls">
+				<input type="text" class="field-name-field input-xxlarge" name="field">
+				<button type="button" class="btn btn-small btn-danger del-field"><i class="icon-remove icon-white"></i></button>
+				<span class="help-inline "><span class="field-id muted"/></span>
+			</div>
+		</div>
+ 	</div>
+
+</div>
+<% include footer %>

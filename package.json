@@ -1,7 +1,11 @@
 {
- "name":"af-node-base",
+ "name":"suv-field-map",
   "version":"0.0.1",
   "dependencies":{
-      "express":""
+      "express":"3.x",
+      "request":"2.x",
+      "cheerio":"",
+      "ejs":"",
+      "mongoose":""
   }
 }
